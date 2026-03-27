@@ -13,8 +13,8 @@ import AdminPanel from "./components/admin/AdminPanel";
 export default function App() {
   const [tab, setTab] = useState("regs");
 
-  const tournament = useTournament("", "");
-  const { user, signIn, signOut } = useAuth((email, name) => tournament.loadData(email, name));
+  const tournament = useTournament();
+  const { user, signIn, signOut } = useAuth((email) => tournament.loadData(email));
 
   const isAdmin = user ? tournament.admins.includes(user.email) : false;
   const myScore = scoreAll(tournament.picks, tournament.official);
@@ -23,12 +23,6 @@ export default function App() {
     return (
       <LoginScreen
         onSignIn={signIn}
-        onDevLogin={(isAdminLogin) => {
-          const u = isAdminLogin
-            ? { name: "Admin", email: "admin@example.com", picture: null, isAdmin: true }
-            : { name: "Demo Player", email: "demo@example.com", picture: null, isAdmin: false };
-          // handled inside useAuth in your real implementation
-        }}
       />
     );
   }
