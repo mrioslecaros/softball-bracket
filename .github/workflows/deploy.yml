@@ -32,12 +32,6 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
-      - name: Debug VITE env
-        run: |
-          echo "client id: $VITE_GOOGLE_CLIENT_ID"
-        env:
-          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
-
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
