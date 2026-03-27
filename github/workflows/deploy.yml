@@ -1,0 +1,55 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main  # or master, whatever your default branch is
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: softball-bracket  # your subfolder
+
+      - name: Build
+        run: npm run build
+        working-directory: softball-bracket
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: softball-bracket/dist  # Vite outputs to /dist
+```
+
+---
+
+## 3. Enable GitHub Pages in repo settings
+
+1. Go to your repo on GitHub → **Settings** → **Pages**
+2. Under **Source**, select **Deploy from a branch**
+3. Set the branch to **`gh-pages`** and folder to **`/ (root)`**
+4. Click **Save**
+
+The `peaceiris/actions-gh-pages` action will automatically create and push to the `gh-pages` branch every time you push to `main`.
+
+---
+
+## 4. Push and verify
+
+Once you push these changes, go to the **Actions** tab in your repo to watch the workflow run. When it's green, your site will be live at:
+```
+https://mrioslecaros.github.io/softball-bracket/
