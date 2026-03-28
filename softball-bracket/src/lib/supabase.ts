@@ -12,28 +12,29 @@ const sbHeaders = {
 };
 
 export async function fetchRegionals(): Promise<Regional[]> { 
-    const r = await fetch(`${sb("regionals")}?order=regional_index`, { headers: sbHeaders });
-     const rows: RegionalRow[] = await r.json();
-    return rows.map(row => ({
-      id: `reg${row.regional_index}`,
-      name: row.name,
-      teams: [row.seed_1, row.seed_2, row.seed_3, row.seed_4],
-      winner: null,
-    }));
+  const r = await fetch(`${sb("regionals")}?order=regional_index`, { headers: sbHeaders });
+  const rows: RegionalRow[] = await r.json();
+  return rows.map(row => ({
+    id: `reg${row.regional_index}`,
+    name: row.name,
+    teams: [row.seed_1, row.seed_2, row.seed_3, row.seed_4],
+    winner: null,
+  }));
  }
 export async function saveRegional(ri: number, name: string, teams: string[]): Promise<void> { 
-    await fetch(`${sb("regionals")}?regional_index=eq.${ri}`, {
-      method: "PATCH",
-      headers: sbHeaders,
-      body: JSON.stringify({ name, seed_1: teams[0], seed_2: teams[1], seed_3: teams[2], seed_4: teams[3] }),
-    }); 
+  await fetch(`${sb("regionals")}?regional_index=eq.${ri}`, {
+    method: "PATCH",
+    headers: sbHeaders,
+    body: JSON.stringify({ name, seed_1: teams[0], seed_2: teams[1], seed_3: teams[2], seed_4: teams[3] }),
+  }); 
 }
 export async function fetchOfficial(): Promise<Official | null> {
-    const r = await fetch(`${sb("official_results")}?order=id.desc&limit=1`, { headers: sbHeaders });
-    const rows = await r.json();
-    return rows[0]?.data || null;
+  const r = await fetch(`${sb("official_results")}?order=id.desc&limit=1`, { headers: sbHeaders });
+  const rows = await r.json();
+  return rows[0]?.data || null;
 }
-export async function saveOfficial(data: Official): Promise<void> {  await fetch(`${sb("official_results")}?id=eq.1`, {
+export async function saveOfficial(data: Official): Promise<void> { 
+  await fetch(`${sb("official_results")}?id=eq.1`, {
     method: "PATCH", headers: sbHeaders,
     body: JSON.stringify({ data }),
   });
@@ -46,36 +47,69 @@ export async function saveOfficial(data: Official): Promise<void> {  await fetch
     });
   }
 }
-export async function fetchPicks(email: string): Promise<Picks | null> { const r = await fetch(`${sb("picks")}?user_email=eq.${encodeURIComponent(email)}`, { headers: sbHeaders });
-    const rows = await r.json();
-    return rows[0]?.data || null; }
-export async function savePicks(email: string, name: string, data: Picks): Promise<void> { 
-    await fetch(sb("picks"), {
-    method: "POST",
-    headers: { ...sbHeaders, "Prefer": "resolution=merge-duplicates,return=representation" },
-    body: JSON.stringify({ user_email: email, user_name: name, data }),
-    }); 
+export async function fetchPicks(email: string): Promise<Picks | null> {
+  const r = await fetch(`${sb("picks")}?user_email=eq.${encodeURIComponent(email)}`, { headers: sbHeaders });
+  const rows = await r.json();
+  return rows[0]?.data || null;
 }
-export async function fetchAllPicks(): Promise<Record<string, PlayerEntry>> { 
-    const r = await fetch(`${sb("picks")}?select=user_email,user_name,data`, { headers: sbHeaders });
-    const rows = await r.json();
-    return Object.fromEntries(rows.filter((row: any) => row.data).map((row: any) => [row.user_email, { email: row.user_email, name: row.user_name, picks: row.data }]));
- }
-export async function fetchAdmins(): Promise<string[]> { 
-    const r = await fetch(`${sb("admins")}?select=email&order=added_at`, { headers: sbHeaders });
-     const rows: AdminRow[] = await r.json();
-    return rows.map(r => r.email);
- }
-export async function addAdmin(email: string): Promise<void> { 
-    await fetch(sb("admins"), {
+
+export async function savePicks(email: string, name: string, data: Picks): Promise<void> {
+  // First try to update existing row
+  const updateRes = await fetch(
+    `${sb("picks")}?user_email=eq.${encodeURIComponent(email)}`,
+    {
+      method: "PATCH",
+      headers: sbHeaders,
+      body: JSON.stringify({ user_name: name, data, updated_at: new Date().toISOString() }),
+    }
+  );
+
+  // If no row existed (0 rows updated), insert instead
+  const updated = await updateRes.json() as unknown[];
+  if (!Array.isArray(updated) || updated.length === 0) {
+    await fetch(sb("picks"), {
       method: "POST",
       headers: sbHeaders,
-      body: JSON.stringify({ email: email.toLowerCase().trim() }),
+      body: JSON.stringify({ user_email: email, user_name: name, data }),
     });
+  }
+}
+
+export async function fetchAllPicks(): Promise<Record<string, PlayerEntry>> { 
+  const r = await fetch(`${sb("picks")}?select=user_email,user_name,data`, { headers: sbHeaders });
+  const rows = await r.json();
+  return Object.fromEntries(rows.filter((row: any) => row.data).map((row: any) => [row.user_email, { email: row.user_email, name: row.user_name, picks: row.data }]));
+}
+
+export async function fetchAdmins(): Promise<string[]> { 
+  const r = await fetch(`${sb("admins")}?select=email&order=added_at`, { headers: sbHeaders });
+  const rows: AdminRow[] = await r.json();
+  return rows.map(r => r.email);
+}
+export async function addAdmin(email: string): Promise<void> { 
+  await fetch(sb("admins"), {
+    method: "POST",
+    headers: sbHeaders,
+    body: JSON.stringify({ email: email.toLowerCase().trim() }),
+  });
  }
 export async function removeAdmin(email: string): Promise<void> { 
-    await fetch(`${sb("admins")}?email=eq.${encodeURIComponent(email)}`, {
-      method: "DELETE",
-      headers: sbHeaders,
-    });
+  await fetch(`${sb("admins")}?email=eq.${encodeURIComponent(email)}`, {
+    method: "DELETE",
+    headers: sbHeaders,
+  });
  }
+
+export async function fetchLocked(): Promise<boolean> {
+  const r = await fetch(`${sb("settings")}?key=eq.locked`, { headers: sbHeaders });
+  const rows = await r.json() as { value: boolean }[];
+  return rows[0]?.value ?? false;
+}
+
+export async function saveLocked(val: boolean): Promise<void> {
+  await fetch(`${sb("settings")}?key=eq.locked`, {
+    method: "PATCH",
+    headers: sbHeaders,
+    body: JSON.stringify({ value: val }),
+  });
+}
