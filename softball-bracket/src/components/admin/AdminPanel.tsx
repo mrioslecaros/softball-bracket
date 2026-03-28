@@ -9,8 +9,8 @@ interface AdminPanelProps {
   regs: Regional[];
   srData: SRData[];
   wcwsBrackets: WCWSBracket[];
-  finA: string;
-  finB: string;
+  champA: string;
+  champB: string;
   official: Official | null;
   locked: boolean;
   admins: string[];
@@ -25,7 +25,7 @@ interface AdminPanelProps {
 type AdminTab = "teams" | "results" | "admins" | "settings";
 
 export default function AdminPanel({
-  regs, srData, wcwsBrackets, finA, finB, official, locked,
+  regs, srData, wcwsBrackets, champA, champB, official, locked,
   admins, user, onSaveRegs, onSaveOfficial, onToggleLock,
   onAddAdmin, onRemoveAdmin,
 }: AdminPanelProps) {
@@ -40,7 +40,7 @@ export default function AdminPanel({
         ))}
       </div>
       {at === "teams"    && <TeamsEditor regs={regs} onSave={onSaveRegs} />}
-      {at === "results"  && <ResultsEditor regs={regs} srData={srData} wcwsBrackets={wcwsBrackets} finA={finA} finB={finB} official={official} onSave={onSaveOfficial} />}
+      {at === "results"  && <ResultsEditor regs={regs} srData={srData} wcwsBrackets={wcwsBrackets} champA={champA} champB={champB} official={official} onSave={onSaveOfficial} />}
       {at === "admins"   && <AdminManager admins={admins} currentUserEmail={user.email} onAdd={onAddAdmin} onRemove={onRemoveAdmin} />}
       {at === "settings" && <Settings locked={locked} onToggleLock={onToggleLock} />}
     </>

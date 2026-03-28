@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { useTournament } from "./hooks/useTournament";
 import { scoreAll } from "./lib/scoring";
 import Header from "./components/layout/Header";
 import LoginScreen from "./components/auth/LoginScreen";
-import RegSupers from "./components/regionals/RegSupers";
-import WCWSTab from "./components/wcws/WCWSTab";
+import RegSupers from "./components/wcws/RegSupers";
+import Finals from "./components/finals/FinalsTab";
 import Leaderboard from "./components/leaderboard/Leaderboard";
 import Scores from "./components/scores/Scores";
 import AdminPanel from "./components/admin/AdminPanel";
@@ -15,6 +15,10 @@ export default function App() {
 
   const tournament = useTournament();
   const { user, signIn, signOut } = useAuth((email) => tournament.loadData(email));
+
+  useEffect(() => {
+    if (user) tournament.setUserRef(user.email, user.name);
+  }, [user]);
 
   const isAdmin = user ? tournament.admins.includes(user.email) : false;
   const myScore = scoreAll(tournament.picks, tournament.official);
@@ -40,8 +44,16 @@ export default function App() {
         {tournament.locked && <div className="bnr bnr-r">🔒 Picks are locked — tournament is underway!</div>}
         {tournament.saveBanner && <div className="bnr bnr-g">✓ Picks saved</div>}
 
-        {tab === "regs" && <RegSupers regs={tournament.regs} srData={tournament.srData} picks={tournament.picks} official={tournament.official} locked={tournament.locked} pick={tournament.pick} />}
-        {tab === "wcws" && <WCWSTab brackets={tournament.wcwsBrackets} finA={tournament.finA} finB={tournament.finB} picks={tournament.picks} official={tournament.official} locked={tournament.locked} pick={tournament.pick} />}
+        {tab === "regs" && <RegSupers  regs={tournament.regs}
+          srData={tournament.srData}
+          wcwsBrackets={tournament.wcwsBrackets}
+          champA={tournament.champA}
+          champB={tournament.champB}
+          picks={tournament.picks}
+          official={tournament.official}
+          locked={tournament.locked}
+          pick={tournament.pick} />}
+        {tab === "wcws" && <Finals brackets={tournament.wcwsBrackets} champA={tournament.champA} champB={tournament.champB} picks={tournament.picks} official={tournament.official} locked={tournament.locked} pick={tournament.pick} />}
         {tab === "lb"   && <Leaderboard allPicks={tournament.allPicks} official={tournament.official} me={user.email} />}
         {tab === "scores" && <Scores games={tournament.espn} onRefresh={tournament.fetchESPN} />}
         {tab === "admin" && isAdmin && (
@@ -49,8 +61,8 @@ export default function App() {
             regs={tournament.regs}
             srData={tournament.srData}
             wcwsBrackets={tournament.wcwsBrackets}
-            finA={tournament.finA}
-            finB={tournament.finB}
+            champA={tournament.champA}
+            champB={tournament.champB}
             official={tournament.official}
             locked={tournament.locked}
             admins={tournament.admins}

@@ -2,6 +2,30 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import type { User } from "../types";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
+const COOKIE_KEY = "wcws_user";
+const COOKIE_DAYS = 30;
+
+function saveUserCookie(user: User) {
+  const expires = new Date();
+  expires.setDate(expires.getDate() + COOKIE_DAYS);
+  document.cookie = `${COOKIE_KEY}=${encodeURIComponent(JSON.stringify(user))};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
+}
+
+function loadUserCookie(): User | null {
+  const match = document.cookie
+    .split("; ")
+    .find(row => row.startsWith(`${COOKIE_KEY}=`));
+  if (!match) return null;
+  try {
+    return JSON.parse(decodeURIComponent(match.split("=").slice(1).join("=")));
+  } catch {
+    return null;
+  }
+}
+
+function clearUserCookie() {
+  document.cookie = `${COOKIE_KEY}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+}
 
 interface GoogleCredentialResponse {
   credential: string;
@@ -32,21 +56,31 @@ export function useAuth(onLogin: (email: string, name: string) => void) {
   const [user, setUser] = useState<User | null>(null);
   const gsiInitialized = useRef(false);
 
-  const handleGCred = useCallback((response: GoogleCredentialResponse) => {
+  useEffect(() => {
+    const saved = loadUserCookie();
+    if (saved) {
+      setUser(saved);
+      onLogin(saved.email, saved.name);
+    }
+  }, []);
+
+  const handleGCred = useCallback((response: { credential: string }) => {
     try {
       const payload = JSON.parse(atob(response.credential.split(".")[1])) as GoogleJWTPayload;
       const u: User = {
         name: payload.name,
         email: payload.email,
         picture: payload.picture,
-        isAdmin: false, // resolved from DB in useTournament via onLogin
+        isAdmin: false,
       };
       setUser(u);
+      saveUserCookie(u);        // ← save on login
       onLogin(u.email, u.name);
     } catch (e) {
       console.error("Failed to parse Google credential", e);
     }
   }, [onLogin]);
+  
 
   useEffect(() => {
     if (GOOGLE_CLIENT_ID === "YOUR_GOOGLE_CLIENT_ID_HERE" || !GOOGLE_CLIENT_ID) return;
@@ -96,6 +130,7 @@ export function useAuth(onLogin: (email: string, name: string) => void) {
 
   const signOut = useCallback(() => {
     try { window.google?.accounts.id.cancel(); } catch (e) {}
+    clearUserCookie();          // ← clear on sign out
     setUser(null);
   }, []);
 

@@ -1,12 +1,14 @@
-import { useState, useCallback } from "react";
-import type { Picks, Official, Regional, SRData, WCWSBracket, PlayerEntry } from "../types";
-import { SR_PAIRS, SR_LABELS } from "../constants";
+import { useState, useCallback, useRef } from "react";
+import type { Picks, Official, Regional, SRData, WCWSBracket, PlayerEntry, WCWSBracketPicks } from "../types";
+import { SR_PAIRS, SR_LABELS, BRACKET_SR_INDICES } from "../constants";
+import { getBracketChampion } from "../lib/wcwsLogic";
 import {
   fetchRegionals, saveRegional,
   fetchOfficial, saveOfficial as dbSaveOfficial,
   fetchPicks, savePicks as dbSavePicks,
   fetchAllPicks,
   fetchAdmins, addAdmin as dbAddAdmin, removeAdmin as dbRemoveAdmin,
+  fetchLocked, saveLocked 
 } from "../lib/supabase";
 
 interface ESPNEvent {
@@ -17,14 +19,33 @@ interface ESPNEvent {
 }
 
 function emptyPicks(): Picks {
+  const emptyBracket = (): WCWSBracketPicks => ({
+    w1: null, w2: null, w3: null,
+    e1: null, e2: null,
+    bf: null, ifg: null,
+  });
   return {
     regionals: Array(16).fill(null),
     superregionals: Array(8).fill(null),
-    wcws: [
-      { wWinner: null, lWinner: null, bracketChamp: null },
-      { wWinner: null, lWinner: null, bracketChamp: null },
-    ],
-    finals: { game1: null, game2: null, game3: null, champion: null },
+    wcws: [emptyBracket(), emptyBracket()],
+    championship: { game1: null, game2: null, game3: null, champion: null },
+  };
+}
+
+// Migrate picks from old DB format (finals → championship, wWinner/lWinner/bracketChamp → 7-game)
+function normalizePicks(raw: Record<string, unknown>): Picks {
+  const base = emptyPicks();
+  return {
+    regionals: (raw.regionals as Picks["regionals"]) ?? base.regionals,
+    superregionals: (raw.superregionals as Picks["superregionals"]) ?? base.superregionals,
+    wcws: Array.isArray(raw.wcws)
+      ? raw.wcws.map((b: Record<string, unknown>, i: number) =>
+          ("w1" in b) ? b as unknown as WCWSBracketPicks : base.wcws[i]
+        )
+      : base.wcws,
+    championship: (raw.championship as Picks["championship"])
+      ?? (raw.finals as Picks["championship"])
+      ?? base.championship,
   };
 }
 
@@ -60,36 +81,44 @@ export function useTournament() {
     };
   });
 
-  const wcwsBrackets: WCWSBracket[] = [0, 1].map(bi => {
-    const teams = Array.from({ length: 4 }, (_, i) =>
-      official?.superregionals?.[bi * 4 + i] ?? `SR${bi * 4 + i + 1} Winner`
+  const wcwsBrackets: WCWSBracket[] = BRACKET_SR_INDICES.map((srIndices, bi) => {
+    // srIndices gives the SR_PAIRS positions for this bracket, in seed order
+    const teams = srIndices.map(srIdx =>
+      official?.superregionals?.[srIdx] ??
+      picks?.superregionals?.[srIdx] ??
+      null
     ) as (string | null)[];
     return { id: `wb${bi}`, label: `Bracket ${bi + 1}`, teams };
   });
 
-  const finA = official?.wcws?.[0]?.bracketChamp
-    ?? picks?.wcws?.[0]?.bracketChamp
-    ?? "Bracket 1 Champion";
-  const finB = official?.wcws?.[1]?.bracketChamp
-    ?? picks?.wcws?.[1]?.bracketChamp
-    ?? "Bracket 2 Champion";
+  const champA =
+    getBracketChampion(official?.wcws?.[0]) ??
+    getBracketChampion(picks?.wcws?.[0]) ??
+    "Bracket 1 Champion";
+
+  const champB =
+    getBracketChampion(official?.wcws?.[1]) ??
+    getBracketChampion(picks?.wcws?.[1]) ??
+    "Bracket 2 Champion";
 
   // ── Load ────────────────────────────────────────────────────────────────────
 
   const loadData = useCallback(async (email: string) => {
     try {
-      const [regsData, off, pd, ap, adminList] = await Promise.all([
+      const [regsData, off, pd, ap, adminList, isLocked] = await Promise.all([
         fetchRegionals(),
         fetchOfficial(),
         fetchPicks(email),
         fetchAllPicks(),
         fetchAdmins(),
+        fetchLocked(),
       ]);
       setRegs(regsData);
       if (off) setOfficial(off);
-      setPicks(pd ?? emptyPicks());
+      setPicks(pd ? normalizePicks(pd as unknown as Record<string, unknown>) : emptyPicks());
       setAllPicks(ap);
       setAdmins(adminList);
+      setLocked(isLocked);
     } catch (e) {
       console.error("Failed to load data", e);
       setPicks(emptyPicks());
@@ -110,11 +139,11 @@ export function useTournament() {
   }, []);
 
   // userEmail/userName stored in a ref so pick() doesn't need them as deps
-  const userRef = { email: "", name: "" };
-  const setUserRef = (email: string, name: string) => {
-    userRef.email = email;
-    userRef.name = name;
-  };
+  const userRef = useRef({ email: "", name: "" });
+  const setUserRef = useCallback((email: string, name: string) => {
+    userRef.current.email = email;
+    userRef.current.name = name;
+  }, []);
 
   const pick = useCallback((path: string, val: string) => {
     if (locked) return;
@@ -131,7 +160,15 @@ export function useTournament() {
       } else {
         o[lastKey] = val;
       }
-      savePicksToDb(np, userRef.email, userRef.name);
+      // Auto-clear ifg when bf is picked to the winners side (makes IF unnecessary)
+      const bfMatch = path.match(/^wcws\.(\d+)\.bf$/);
+      if (bfMatch) {
+        const bi = parseInt(bfMatch[1]);
+        if (val !== np.wcws[bi]?.e2) {
+          np.wcws[bi].ifg = null;
+        }
+      }
+      savePicksToDb(np, userRef.current.email, userRef.current.name);
       return np;
     });
   }, [locked, savePicksToDb]);
@@ -149,8 +186,11 @@ export function useTournament() {
   }, []);
 
   const toggleLock = useCallback(async () => {
-    setLocked(prev => !prev);
-    // persist to DB if you have a settings table, otherwise just local
+    setLocked(prev => {
+      const next = !prev;
+      saveLocked(next).catch(console.error);
+      return next;
+    });
   }, []);
 
   const addAdmin = useCallback(async (email: string) => {
@@ -179,7 +219,7 @@ export function useTournament() {
     // state
     regs, picks, official, allPicks, admins, locked, saveBanner, espn,
     // derived
-    srData, wcwsBrackets, finA, finB,
+    srData, wcwsBrackets, champA, champB,
     // actions
     loadData, setUserRef, pick,
     saveRegs, saveOfficial, toggleLock,

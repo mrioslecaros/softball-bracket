@@ -16,11 +16,11 @@ export default function Header({ tab, setTab, user, onSignOut, isAdmin, score, h
       <div className="logo">WCWS 2025 <em>Bracket Challenge</em></div>
       <div className="nav">
         <button className={`nb${tab === "regs" ? " on" : ""}`} onClick={() => setTab("regs")}>
-          Reg &amp; Supers
-        </button>
-        <button className={`nb${tab === "wcws" ? " on" : ""}`} onClick={() => setTab("wcws")}>
           WCWS
         </button>
+        {/* <button className={`nb${tab === "wcws" ? " on" : ""}`} onClick={() => setTab("wcws")}>
+          Finals
+        </button> */}
         <button className={`nb${tab === "lb" ? " on" : ""}`} onClick={() => setTab("lb")}>
           Standings
         </button>
