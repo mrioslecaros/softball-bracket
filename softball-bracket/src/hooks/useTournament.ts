@@ -8,8 +8,11 @@ import {
   fetchPicks, savePicks as dbSavePicks,
   fetchAllPicks,
   fetchAdmins, addAdmin as dbAddAdmin, removeAdmin as dbRemoveAdmin,
-  fetchLocked, saveLocked 
+  fetchLocked, saveLocked,
+  fetchTeamIds, saveTeamId as dbSaveTeamId,
+  fetchEventIds, saveEventId as dbSaveEventId,
 } from "../lib/supabase";
+import { fetchEventResult, applyResultToOfficial } from "../lib/espnApi";
 
 
 interface ESPNEvent {
@@ -47,6 +50,7 @@ function normalizePicks(raw: Record<string, unknown>): Picks {
     championship: (raw.championship as Picks["championship"])
       ?? (raw.finals as Picks["championship"])
       ?? base.championship,
+    ...(raw.lockedIn === true ? { lockedIn: true } : {}),
   };
 }
 
@@ -59,6 +63,8 @@ export function useTournament() {
   const [locked, setLocked] = useState(false);
   const [saveBanner, setSaveBanner] = useState(false);
   const [espn, setEspn] = useState<ESPNEvent[]>([]);
+  const [teamIds, setTeamIds] = useState<Record<string, string>>({});
+  const [eventIds, setEventIds] = useState<Record<string, string>>({});
 
   // ── Derived data ────────────────────────────────────────────────────────────
 
@@ -106,13 +112,15 @@ export function useTournament() {
 
   const loadData = useCallback(async (email: string) => {
     try {
-      const [regsData, off, pd, ap, adminList, isLocked] = await Promise.all([
+      const [regsData, off, pd, ap, adminList, isLocked, tIds, eIds] = await Promise.all([
         fetchRegionals(),
         fetchOfficial(),
         fetchPicks(email),
         fetchAllPicks(),
         fetchAdmins(),
         fetchLocked(),
+        fetchTeamIds(),
+        fetchEventIds(),
       ]);
       setRegs(regsData);
       if (off) setOfficial(off);
@@ -120,6 +128,8 @@ export function useTournament() {
       setAllPicks(ap);
       setAdmins(adminList);
       setLocked(isLocked);
+      setTeamIds(tIds);
+      setEventIds(eIds);
     } catch (e) {
       console.error("Failed to load data", e);
       setPicks(emptyPicks());
@@ -146,8 +156,18 @@ export function useTournament() {
     userRef.current.name = name;
   }, []);
 
+  const playerLocked = picks?.lockedIn === true;
+
+  const lockInPicks = useCallback(async () => {
+    setPicks(prev => {
+      const np: Picks = { ...(prev ?? emptyPicks()), lockedIn: true };
+      savePicksToDb(np, userRef.current.email, userRef.current.name);
+      return np;
+    });
+  }, [savePicksToDb]);
+
   const pick = useCallback((path: string, val: string) => {
-    if (locked) return;
+    if (locked || playerLocked) return;
     setPicks(prev => {
       const np: Picks = JSON.parse(JSON.stringify(prev ?? emptyPicks()));
       const parts = path.split(".");
@@ -194,6 +214,48 @@ export function useTournament() {
     });
   }, []);
 
+  const saveTeamId = useCallback(async (name: string, espnId: string) => {
+    await dbSaveTeamId(name, espnId);
+    setTeamIds(prev => ({ ...prev, [name]: espnId }));
+  }, []);
+
+  const saveEventId = useCallback(async (gameKey: string, espnEventId: string) => {
+    await dbSaveEventId(gameKey, espnEventId);
+    setEventIds(prev => ({ ...prev, [gameKey]: espnEventId }));
+  }, []);
+
+  const autoFetchResults = useCallback(async (currentOfficial: Official | null) => {
+    const base: Official = currentOfficial ?? {
+      regionals: Array(16).fill(null),
+      superregionals: Array(8).fill(null),
+      wcws: [
+        { w1: null, w2: null, w3: null, e1: null, e2: null, bf: null, ifg: null },
+        { w1: null, w2: null, w3: null, e1: null, e2: null, bf: null, ifg: null },
+      ],
+      championship: { game1: null, game2: null, game3: null, champion: null },
+    };
+    // Build reverse map: espnId → team name
+    const espnIdToName: Record<string, string> = {};
+    for (const [name, espnId] of Object.entries(teamIds)) {
+      espnIdToName[espnId] = name;
+    }
+    let updated = { ...base };
+    let anyUpdated = false;
+    for (const [gameKey, eventId] of Object.entries(eventIds)) {
+      const result = await fetchEventResult(eventId);
+      if (!result?.completed || !result.winnerEspnId) continue;
+      const winnerName = espnIdToName[result.winnerEspnId];
+      if (!winnerName) continue;
+      updated = applyResultToOfficial(updated, gameKey, winnerName);
+      anyUpdated = true;
+    }
+    if (anyUpdated) {
+      setOfficial(updated);
+      await dbSaveOfficial(updated);
+    }
+    return anyUpdated;
+  }, [teamIds, eventIds]);
+
   const addAdmin = useCallback(async (email: string) => {
     await dbAddAdmin(email);
     setAdmins(prev => [...prev, email]);
@@ -222,8 +284,10 @@ export function useTournament() {
     // derived
     srData, wcwsBrackets, champA, champB,
     // actions
-    loadData, setUserRef, pick,
+    loadData, setUserRef, pick, lockInPicks,
     saveRegs, saveOfficial, toggleLock,
     addAdmin, removeAdmin, fetchESPN,
+    playerLocked,
+    teamIds, eventIds, saveTeamId, saveEventId, autoFetchResults,
   };
 }

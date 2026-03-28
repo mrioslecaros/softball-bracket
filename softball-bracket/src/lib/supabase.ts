@@ -100,6 +100,47 @@ export async function removeAdmin(email: string): Promise<void> {
   });
  }
 
+export async function fetchTeamIds(): Promise<Record<string, string>> {
+  const r = await fetch(`${sb("teams")}?select=name,espn_id`, { headers: sbHeaders });
+  const rows: { name: string; espn_id: string }[] = await r.json();
+  return Object.fromEntries(rows.filter(r => r.espn_id).map(r => [r.name, r.espn_id]));
+}
+
+export async function saveTeamId(name: string, espnId: string): Promise<void> {
+  // Upsert: update if exists, insert if not
+  const updateRes = await fetch(`${sb("teams")}?name=eq.${encodeURIComponent(name)}`, {
+    method: "PATCH", headers: sbHeaders,
+    body: JSON.stringify({ espn_id: espnId }),
+  });
+  const updated = await updateRes.json() as unknown[];
+  if (!Array.isArray(updated) || updated.length === 0) {
+    await fetch(sb("teams"), {
+      method: "POST", headers: sbHeaders,
+      body: JSON.stringify({ name, espn_id: espnId }),
+    });
+  }
+}
+
+export async function fetchEventIds(): Promise<Record<string, string>> {
+  const r = await fetch(`${sb("events")}?select=game_key,espn_event_id`, { headers: sbHeaders });
+  const rows: { game_key: string; espn_event_id: string }[] = await r.json();
+  return Object.fromEntries(rows.filter(r => r.espn_event_id).map(r => [r.game_key, r.espn_event_id]));
+}
+
+export async function saveEventId(gameKey: string, espnEventId: string): Promise<void> {
+  const updateRes = await fetch(`${sb("events")}?game_key=eq.${encodeURIComponent(gameKey)}`, {
+    method: "PATCH", headers: sbHeaders,
+    body: JSON.stringify({ espn_event_id: espnEventId }),
+  });
+  const updated = await updateRes.json() as unknown[];
+  if (!Array.isArray(updated) || updated.length === 0) {
+    await fetch(sb("events"), {
+      method: "POST", headers: sbHeaders,
+      body: JSON.stringify({ game_key: gameKey, espn_event_id: espnEventId }),
+    });
+  }
+}
+
 export async function fetchLocked(): Promise<boolean> {
   const r = await fetch(`${sb("settings")}?key=eq.locked`, { headers: sbHeaders });
   const rows = await r.json() as { value: boolean }[];
