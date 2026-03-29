@@ -163,3 +163,25 @@ export async function saveLocked(val: boolean): Promise<void> {
     body: JSON.stringify({ value: val }),
   });
 }
+
+export async function fetchPoints(): Promise<Record<string, number> | null> {
+  const r = await fetch(`${sb("settings")}?key=eq.points`, { headers: sbHeaders });
+  const rows = await r.json() as { value: Record<string, number> }[];
+  return rows[0]?.value ?? null;
+}
+
+export async function savePoints(pts: Record<string, number>): Promise<void> {
+  const updateRes = await fetch(`${sb("settings")}?key=eq.points`, {
+    method: "PATCH",
+    headers: sbHeaders,
+    body: JSON.stringify({ value: pts }),
+  });
+  const updated = await updateRes.json() as unknown[];
+  if (!Array.isArray(updated) || updated.length === 0) {
+    await fetch(sb("settings"), {
+      method: "POST",
+      headers: sbHeaders,
+      body: JSON.stringify({ key: "points", value: pts }),
+    });
+  }
+}

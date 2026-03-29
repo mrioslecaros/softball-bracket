@@ -11,7 +11,10 @@ import {
   fetchLocked, saveLocked,
   fetchTeamIds, saveTeamId as dbSaveTeamId,
   fetchEventIds, saveEventId as dbSaveEventId,
+  fetchPoints, savePoints as dbSavePoints,
 } from "../lib/supabase";
+import { PTS } from "../constants";
+import type { PointsConfig } from "../lib/scoring";
 import { fetchEventResult, applyResultToOfficial, fetchAllRegionalEventIds, fetchAllSuperRegionalEventIds, fetchChampionshipEventIds } from "../lib/espnApi";
 
 
@@ -65,6 +68,7 @@ export function useTournament() {
   const [espn, setEspn] = useState<ESPNEvent[]>([]);
   const [teamIds, setTeamIds] = useState<Record<string, string>>({});
   const [eventIds, setEventIds] = useState<Record<string, string>>({});
+  const [points, setPoints] = useState<PointsConfig>({ ...PTS });
 
   // ── Derived data ────────────────────────────────────────────────────────────
 
@@ -112,7 +116,7 @@ export function useTournament() {
 
   const loadData = useCallback(async (email: string) => {
     try {
-      const [regsData, off, pd, ap, adminList, isLocked, tIds, eIds] = await Promise.all([
+      const [regsData, off, pd, ap, adminList, isLocked, tIds, eIds, savedPts] = await Promise.all([
         fetchRegionals(),
         fetchOfficial(),
         fetchPicks(email),
@@ -121,6 +125,7 @@ export function useTournament() {
         fetchLocked(),
         fetchTeamIds(),
         fetchEventIds(),
+        fetchPoints(),
       ]);
       setRegs(regsData);
       if (off) setOfficial(off);
@@ -130,6 +135,7 @@ export function useTournament() {
       setLocked(isLocked);
       setTeamIds(tIds);
       setEventIds(eIds);
+      if (savedPts) setPoints(prev => ({ ...prev, ...savedPts }));
     } catch (e) {
       console.error("Failed to load data", e);
       setPicks(emptyPicks());
@@ -212,6 +218,11 @@ export function useTournament() {
       saveLocked(next).catch(console.error);
       return next;
     });
+  }, []);
+
+  const savePointsConfig = useCallback(async (pts: PointsConfig) => {
+    setPoints(pts);
+    await dbSavePoints(pts as unknown as Record<string, number>);
   }, []);
 
   const saveTeamId = useCallback(async (name: string, espnId: string) => {
@@ -375,6 +386,7 @@ export function useTournament() {
     saveRegs, saveOfficial, toggleLock,
     addAdmin, removeAdmin, fetchESPN,
     playerLocked,
+    points, savePointsConfig,
     teamIds, eventIds, saveTeamId, saveEventId, autoFetchResults,
     importRegionalEventIds, importSuperRegionalEventIds, importChampionshipEventIds,
   };

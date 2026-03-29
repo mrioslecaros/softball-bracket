@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Regional, Picks, Official } from "../../types";
 import { scoreAll } from "../../lib/scoring";
+import type { PointsConfig } from "../../lib/scoring";
 import BracketViewer from "./BracketViewer";
 
 interface LeaderboardProps {
@@ -10,9 +11,10 @@ interface LeaderboardProps {
   locked: boolean;
   playerLocked: boolean;
   me: string;
+  points: PointsConfig;
 }
 
-export default function Leaderboard({ allPicks, official, regs, locked, playerLocked, me }: LeaderboardProps) {
+export default function Leaderboard({ allPicks, official, regs, locked, playerLocked, me, points }: LeaderboardProps) {
   const [viewing, setViewing] = useState<{ email: string; name: string; picks: Picks } | null>(null);
 
   // Viewer can see brackets only if the tournament is admin-locked OR they've locked in their own picks
@@ -21,7 +23,7 @@ export default function Leaderboard({ allPicks, official, regs, locked, playerLo
   const rows = Object.entries(allPicks).map(([email, d]) => ({
     email,
     name: d.name,
-    score: scoreAll(d.picks, official),
+    score: scoreAll(d.picks, official, points),
     regC: official
       ? (d.picks?.regionals || []).filter((p, i) => p && official.regionals?.[i] === p).length
       : "—",

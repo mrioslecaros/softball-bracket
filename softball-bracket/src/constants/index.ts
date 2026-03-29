@@ -3,10 +3,7 @@ export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
 export const PTS = {
   regional: 1,
   superregional: 2,
-  wcwsGame12: 2,       // W1, W2, E1
-  wcwsGame3: 3,        // W3, E2
-  wcwsBF: 4,           // Bracket Final
-  wcwsIF: 4,           // If Necessary
+  wcws: 3,             // All WCWS bracket games
   championshipGame: 4, // Championship Series games
   champion: 10,
 } as const;

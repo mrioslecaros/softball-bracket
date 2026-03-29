@@ -2,46 +2,40 @@ import type { Picks, Official, WCWSBracketPicks } from "../types";
 import { PTS } from "../constants";
 import { deriveChampionFromGames } from "./wcwsLogic";
 
-const WCWS_GAME_PTS: Record<keyof WCWSBracketPicks, number> = {
-  w1: PTS.wcwsGame12,
-  w2: PTS.wcwsGame12,
-  w3: PTS.wcwsGame3,
-  e1: PTS.wcwsGame12,
-  e2: PTS.wcwsGame3,
-  bf: PTS.wcwsBF,
-  ifg: PTS.wcwsIF,
-};
+export type PointsConfig = typeof PTS;
 
-const WCWS_GAME_KEYS = Object.keys(WCWS_GAME_PTS) as (keyof WCWSBracketPicks)[];
+const WCWS_KEYS: (keyof WCWSBracketPicks)[] = ["w1", "w2", "w3", "e1", "e2", "bf", "ifg"];
 
-export function scoreAll(picks: Picks | null, official: Official | null): number {
+export function scoreAll(picks: Picks | null, official: Official | null, pts: Partial<PointsConfig> = {}): number {
   if (!picks || !official) return 0;
+  const p: PointsConfig = { ...PTS, ...pts };
+
   let s = 0;
 
-  (picks.regionals ?? []).forEach((p, i) => {
-    if (p && official.regionals?.[i] === p) s += PTS.regional;
+  (picks.regionals ?? []).forEach((pick, i) => {
+    if (pick && official.regionals?.[i] === pick) s += p.regional;
   });
 
-  (picks.superregionals ?? []).forEach((p, i) => {
-    if (p && official.superregionals?.[i] === p) s += PTS.superregional;
+  (picks.superregionals ?? []).forEach((pick, i) => {
+    if (pick && official.superregionals?.[i] === pick) s += p.superregional;
   });
 
   (picks.wcws ?? []).forEach((b, i) => {
     const ob = official.wcws?.[i];
     if (!ob) return;
-    WCWS_GAME_KEYS.forEach(k => {
-      if (b[k] && ob[k] === b[k]) s += WCWS_GAME_PTS[k];
+    WCWS_KEYS.forEach(k => {
+      if (b[k] && ob[k] === b[k]) s += p.wcws;
     });
   });
 
   const pc = picks.championship ?? {};
   const oc = official.championship ?? {};
-  if (pc.game1 && oc.game1 === pc.game1) s += PTS.championshipGame;
-  if (pc.game2 && oc.game2 === pc.game2) s += PTS.championshipGame;
-  if (pc.game3 && oc.game3 === pc.game3) s += PTS.championshipGame;
+  if (pc.game1 && oc.game1 === pc.game1) s += p.championshipGame;
+  if (pc.game2 && oc.game2 === pc.game2) s += p.championshipGame;
+  if (pc.game3 && oc.game3 === pc.game3) s += p.championshipGame;
   const pickedChamp = deriveChampionFromGames(pc);
   const officialChamp = deriveChampionFromGames(oc);
-  if (pickedChamp && officialChamp && pickedChamp === officialChamp) s += PTS.champion;
+  if (pickedChamp && officialChamp && pickedChamp === officialChamp) s += p.champion;
 
   return s;
 }

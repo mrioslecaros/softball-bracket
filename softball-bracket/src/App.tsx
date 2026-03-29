@@ -41,7 +41,7 @@ export default function App() {
   }, [user]);
 
   const isAdmin = user ? tournament.admins.includes(user.email) : false;
-  const myScore = scoreAll(tournament.picks, tournament.official);
+  const myScore = scoreAll(tournament.picks, tournament.official, tournament.points);
 
   if (!user) {
     return (
@@ -85,7 +85,7 @@ export default function App() {
           locked={tournament.locked || tournament.playerLocked}
           pick={tournament.pick} />}
         {tab === "wcws" && <Finals brackets={tournament.wcwsBrackets} champA={tournament.champA} champB={tournament.champB} picks={tournament.picks} official={tournament.official} locked={tournament.locked || tournament.playerLocked} pick={tournament.pick} />}
-        {tab === "lb"   && <Leaderboard allPicks={tournament.allPicks} official={tournament.official} regs={tournament.regs} locked={tournament.locked} playerLocked={tournament.playerLocked} me={user.email} />}
+        {tab === "lb"   && <Leaderboard allPicks={tournament.allPicks} official={tournament.official} regs={tournament.regs} locked={tournament.locked} playerLocked={tournament.playerLocked} me={user.email} points={tournament.points} />}
         {tab === "scores" && <Scores games={tournament.espn} onRefresh={tournament.fetchESPN} />}
         {tab === "admin" && isAdmin && (
           <AdminPanel
@@ -98,11 +98,13 @@ export default function App() {
             locked={tournament.locked}
             admins={tournament.admins}
             user={user}
+            points={tournament.points}
             onSaveRegs={tournament.saveRegs}
             onSaveOfficial={tournament.saveOfficial}
             onToggleLock={tournament.toggleLock}
             onAddAdmin={tournament.addAdmin}
             onRemoveAdmin={tournament.removeAdmin}
+            onSavePoints={tournament.savePointsConfig}
             onAutoFetch={tournament.autoFetchResults}
             onImportRegionalEventIds={tournament.importRegionalEventIds}
             onImportSuperRegionalEventIds={tournament.importSuperRegionalEventIds}
