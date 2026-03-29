@@ -26,6 +26,7 @@ interface AdminPanelProps {
   onAutoFetch: (official: Official | null) => Promise<boolean>;
   onImportRegionalEventIds: () => Promise<number>;
   onImportSuperRegionalEventIds: () => Promise<number>;
+  onImportWCWSEventIds: () => Promise<number>;
   onImportChampionshipEventIds: () => Promise<number>;
 }
 
@@ -36,7 +37,7 @@ export default function AdminPanel({
   admins, user, points,
   onSaveRegs, onSaveOfficial, onToggleLock,
   onAddAdmin, onRemoveAdmin, onSavePoints, onAutoFetch,
-  onImportRegionalEventIds, onImportSuperRegionalEventIds, onImportChampionshipEventIds,
+  onImportRegionalEventIds, onImportSuperRegionalEventIds, onImportWCWSEventIds, onImportChampionshipEventIds,
 }: AdminPanelProps) {
   const [at, setAt] = useState<AdminTab>("teams");
 
@@ -49,7 +50,7 @@ export default function AdminPanel({
         ))}
       </div>
       {at === "teams"    && <TeamsEditor regs={regs} onSave={onSaveRegs} onSaveTeamId={() => Promise.resolve()} />}
-      {at === "results"  && <ResultsEditor regs={regs} srData={srData} wcwsBrackets={wcwsBrackets} champA={champA} champB={champB} official={official} onSave={onSaveOfficial} onAutoFetch={onAutoFetch} onImportRegionalEventIds={onImportRegionalEventIds} onImportSuperRegionalEventIds={onImportSuperRegionalEventIds} onImportChampionshipEventIds={onImportChampionshipEventIds} />}
+      {at === "results"  && <ResultsEditor regs={regs} srData={srData} wcwsBrackets={wcwsBrackets} champA={champA} champB={champB} official={official} onSave={onSaveOfficial} onAutoFetch={onAutoFetch} onImportRegionalEventIds={onImportRegionalEventIds} onImportSuperRegionalEventIds={onImportSuperRegionalEventIds} onImportWCWSEventIds={onImportWCWSEventIds} onImportChampionshipEventIds={onImportChampionshipEventIds} />}
       {at === "admins"   && <AdminManager admins={admins} currentUserEmail={user.email} onAdd={onAddAdmin} onRemove={onRemoveAdmin} />}
       {at === "settings" && <Settings locked={locked} onToggleLock={onToggleLock} points={points} onSavePoints={onSavePoints} />}
     </>

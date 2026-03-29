@@ -108,6 +108,7 @@ export default function App() {
             onAutoFetch={tournament.autoFetchResults}
             onImportRegionalEventIds={tournament.importRegionalEventIds}
             onImportSuperRegionalEventIds={tournament.importSuperRegionalEventIds}
+            onImportWCWSEventIds={tournament.importWCWSEventIds}
             onImportChampionshipEventIds={tournament.importChampionshipEventIds}
           />
         )}

@@ -365,6 +365,100 @@ export async function fetchChampionshipEventIds(
   }
 }
 
+// Scan the scoreboard for WCWS days and match games to bracket game keys.
+// Matches by checking which bracket both teams belong to, then comparing against
+// the expected matchup derived from current results.
+export async function fetchWCWSEventIds(
+  bracketTeams: (string | null)[][],
+  officialWCWS: ({ w1: string|null; w2: string|null; w3: string|null; e1: string|null; e2: string|null; bf: string|null; ifg: string|null } | undefined)[],
+  crossW3Losers: (string | null)[]
+): Promise<Record<string, string>> {
+  try {
+    const seasonRes = await fetch(ESPN_SEASON_TYPE3);
+    const seasonData = await seasonRes.json();
+    const startDateStr: string | undefined = seasonData?.startDate;
+    if (!startDateStr) return {};
+
+    const startDate = new Date(startDateStr);
+    const result: Record<string, string> = {};
+    const WCWS_GAME_KEYS = ["w1", "w2", "w3", "e1", "e2", "bf", "ifg"] as const;
+
+    // Build team → bracket index lookup
+    const teamToBracket: Record<string, number> = {};
+    bracketTeams.forEach((teams, bi) => {
+      teams.forEach(t => { if (t) teamToBracket[t] = bi; });
+    });
+
+    // WCWS starts ~day 18, runs ~12 days; scan days 17–30
+    for (let d = 17; d <= 30; d++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + d);
+      const dateStr = dateToString(date);
+      try {
+        const res = await fetch(`${ESPN_SCOREBOARD}?dates=${dateStr}`);
+        const data = await res.json();
+        const events: ScoreboardEvent[] = data?.events ?? [];
+
+        for (const event of events) {
+          const eventId = event.id;
+          if (!eventId) continue;
+          const comp = event.competitions?.[0];
+          const names = (comp?.competitors ?? []).map(c => c.team?.displayName ?? c.team?.name ?? "").filter(Boolean);
+          if (names.length !== 2) continue;
+
+          // Both teams must be in the same bracket
+          const biA = teamToBracket[names[0]];
+          const biB = teamToBracket[names[1]];
+          if (biA === undefined || biA !== biB) continue;
+          const bi = biA;
+
+          const off = officialWCWS[bi] ?? { w1: null, w2: null, w3: null, e1: null, e2: null, bf: null, ifg: null };
+          const teams = bracketTeams[bi] ?? [];
+          const TBD = "TBD";
+          const t = (i: number) => teams[i] ?? TBD;
+
+          // Derive expected matchups for all 7 games using current results
+          // BRACKET_SEEDING: w1=[0,1], w2=[3,2] (indices into bracketTeams)
+          const w1w = off.w1; const w2w = off.w2;
+          const w1teams: [string,string] = [t(0), t(1)];
+          const w2teams: [string,string] = [t(3), t(2)];
+          const w1lose = w1w ? w1teams.find(x => x !== w1w) ?? TBD : TBD;
+          const w2lose = w2w ? w2teams.find(x => x !== w2w) ?? TBD : TBD;
+          const e1win = off.e1;
+          const w3win = off.w3;
+          const e2teams: [string,string] = [crossW3Losers[1 - bi] ?? TBD, e1win ?? TBD];
+          const e2win = off.e2;
+          const bfTeams: [string,string] = [w3win ?? TBD, e2win ?? TBD];
+
+          const matchups: Record<string, [string, string]> = {
+            w1: w1teams, w2: w2teams,
+            w3: [w1w ?? TBD, w2w ?? TBD],
+            e1: [w1lose, w2lose],
+            e2: e2teams,
+            bf: bfTeams,
+            ifg: bfTeams,
+          };
+
+          for (const gk of WCWS_GAME_KEYS) {
+            const key = `wcws_${bi}_${gk}`;
+            if (result[key]) continue; // already assigned
+            const [mA, mB] = matchups[gk];
+            if (mA === TBD || mB === TBD) continue;
+            if ((names.includes(mA) && names.includes(mB))) {
+              result[key] = eventId;
+              break;
+            }
+          }
+        }
+      } catch { /* skip */ }
+    }
+
+    return result;
+  } catch {
+    return {};
+  }
+}
+
 // Game keys for single-game events only (WCWS bracket — regionals/SRs/championship are multi-game)
 export const ALL_GAME_KEYS: string[] = [
   ...[0, 1].flatMap(bi => ["w1", "w2", "w3", "e1", "e2", "bf", "ifg"].map(gk => `wcws_${bi}_${gk}`)),

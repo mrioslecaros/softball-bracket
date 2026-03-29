@@ -13,6 +13,7 @@ interface ResultsEditorProps {
   onAutoFetch: (official: Official | null) => Promise<boolean>;
   onImportRegionalEventIds: () => Promise<number>;
   onImportSuperRegionalEventIds: () => Promise<number>;
+  onImportWCWSEventIds: () => Promise<number>;
   onImportChampionshipEventIds: () => Promise<number>;
 }
 
@@ -26,7 +27,7 @@ const emptyOfficial = (): Official => ({
   championship: { game1: null, game2: null, game3: null, champion: null },
 });
 
-export default function ResultsEditor({ regs, srData, wcwsBrackets, champA, champB, official, onSave, onAutoFetch, onImportRegionalEventIds, onImportSuperRegionalEventIds, onImportChampionshipEventIds }: ResultsEditorProps) {
+export default function ResultsEditor({ regs, srData, wcwsBrackets, champA, champB, official, onSave, onAutoFetch, onImportRegionalEventIds, onImportSuperRegionalEventIds, onImportWCWSEventIds, onImportChampionshipEventIds }: ResultsEditorProps) {
   const [off, setOff] = useState<Official>(official || emptyOfficial());
   const [fetching, setFetching] = useState(false);
   const [fetchMsg, setFetchMsg] = useState<string | null>(null);
@@ -74,6 +75,7 @@ export default function ResultsEditor({ regs, srData, wcwsBrackets, champA, cham
 
   const importRegionals = makeImporter("regional", onImportRegionalEventIds);
   const importSuperRegionals = makeImporter("super regional", onImportSuperRegionalEventIds);
+  const importWCWS = makeImporter("WCWS", onImportWCWSEventIds);
   const importChampionship = makeImporter("championship", onImportChampionshipEventIds);
 
   return (
@@ -89,6 +91,7 @@ export default function ResultsEditor({ regs, srData, wcwsBrackets, champA, cham
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
         <button className="btn btn-s" onClick={importRegionals} disabled={importing !== null}>{importing === "regional" ? "Importing…" : "↓ Regional IDs"}</button>
         <button className="btn btn-s" onClick={importSuperRegionals} disabled={importing !== null}>{importing === "super regional" ? "Importing…" : "↓ Super Regional IDs"}</button>
+        <button className="btn btn-s" onClick={importWCWS} disabled={importing !== null}>{importing === "WCWS" ? "Importing…" : "↓ WCWS IDs"}</button>
         <button className="btn btn-s" onClick={importChampionship} disabled={importing !== null}>{importing === "championship" ? "Importing…" : "↓ Championship IDs"}</button>
         <button className="btn btn-g btn-s" onClick={handleAutoFetch} disabled={fetching}>{fetching ? "Fetching…" : "↻ Fetch & Apply Results"}</button>
       </div>

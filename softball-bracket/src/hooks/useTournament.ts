@@ -15,7 +15,8 @@ import {
 } from "../lib/supabase";
 import { PTS } from "../constants";
 import type { PointsConfig } from "../lib/scoring";
-import { fetchEventResult, applyResultToOfficial, fetchAllRegionalEventIds, fetchAllSuperRegionalEventIds, fetchChampionshipEventIds } from "../lib/espnApi";
+import { fetchEventResult, applyResultToOfficial, fetchAllRegionalEventIds, fetchAllSuperRegionalEventIds, fetchChampionshipEventIds, fetchWCWSEventIds } from "../lib/espnApi";
+import { getW3Loser } from "../lib/wcwsLogic";
 
 
 interface ESPNEvent {
@@ -259,6 +260,22 @@ export function useTournament() {
     return Object.keys(fetched).length;
   }, [champA, champB]);
 
+  const importWCWSEventIds = useCallback(async () => {
+    const crossW3Losers = [0, 1].map(bi => {
+      const results = official?.wcws?.[bi] ?? {};
+      return getW3Loser(results);
+    });
+    const fetched = await fetchWCWSEventIds(
+      wcwsBrackets.map(b => b.teams),
+      [official?.wcws?.[0], official?.wcws?.[1]],
+      crossW3Losers
+    );
+    if (Object.keys(fetched).length === 0) return 0;
+    await Promise.all(Object.entries(fetched).map(([key, id]) => dbSaveEventId(key, id)));
+    setEventIds(prev => ({ ...prev, ...fetched }));
+    return Object.keys(fetched).length;
+  }, [wcwsBrackets, official]);
+
   const autoFetchResults = useCallback(async (currentOfficial: Official | null) => {
     const base: Official = currentOfficial ?? {
       regionals: Array(16).fill(null),
@@ -388,6 +405,6 @@ export function useTournament() {
     playerLocked,
     points, savePointsConfig,
     teamIds, eventIds, saveTeamId, saveEventId, autoFetchResults,
-    importRegionalEventIds, importSuperRegionalEventIds, importChampionshipEventIds,
+    importRegionalEventIds, importSuperRegionalEventIds, importWCWSEventIds, importChampionshipEventIds,
   };
 }
