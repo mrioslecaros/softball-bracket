@@ -99,6 +99,7 @@ export interface Picks {
   superregionals: (string | null)[];
   wcws: WCWSBracketPicks[];             // [0]=Bracket1, [1]=Bracket2
   championship: ChampionshipSeriesPicks;
+  lockedIn?: boolean;
 }
 
 export interface Official {

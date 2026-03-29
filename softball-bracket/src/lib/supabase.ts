@@ -21,12 +21,21 @@ export async function fetchRegionals(): Promise<Regional[]> {
     winner: null,
   }));
  }
-export async function saveRegional(ri: number, name: string, teams: string[]): Promise<void> { 
-  await fetch(`${sb("regionals")}?regional_index=eq.${ri}`, {
+export async function saveRegional(ri: number, name: string, teams: string[]): Promise<void> {
+  const body = { regional_index: ri, name, seed_1: teams[0], seed_2: teams[1], seed_3: teams[2], seed_4: teams[3] };
+  const updateRes = await fetch(`${sb("regionals")}?regional_index=eq.${ri}`, {
     method: "PATCH",
     headers: sbHeaders,
-    body: JSON.stringify({ name, seed_1: teams[0], seed_2: teams[1], seed_3: teams[2], seed_4: teams[3] }),
-  }); 
+    body: JSON.stringify(body),
+  });
+  const updated = await updateRes.json() as unknown[];
+  if (!Array.isArray(updated) || updated.length === 0) {
+    await fetch(sb("regionals"), {
+      method: "POST",
+      headers: sbHeaders,
+      body: JSON.stringify(body),
+    });
+  }
 }
 export async function fetchOfficial(): Promise<Official | null> {
   const r = await fetch(`${sb("official_results")}?order=id.desc&limit=1`, { headers: sbHeaders });
@@ -100,6 +109,47 @@ export async function removeAdmin(email: string): Promise<void> {
   });
  }
 
+export async function fetchTeamIds(): Promise<Record<string, string>> {
+  const r = await fetch(`${sb("teams")}?select=name,espn_id`, { headers: sbHeaders });
+  const rows: { name: string; espn_id: string }[] = await r.json();
+  return Object.fromEntries(rows.filter(r => r.espn_id).map(r => [r.name, r.espn_id]));
+}
+
+export async function saveTeamId(name: string, espnId: string): Promise<void> {
+  // Upsert: update if exists, insert if not
+  const updateRes = await fetch(`${sb("teams")}?name=eq.${encodeURIComponent(name)}`, {
+    method: "PATCH", headers: sbHeaders,
+    body: JSON.stringify({ espn_id: espnId }),
+  });
+  const updated = await updateRes.json() as unknown[];
+  if (!Array.isArray(updated) || updated.length === 0) {
+    await fetch(sb("teams"), {
+      method: "POST", headers: sbHeaders,
+      body: JSON.stringify({ name, espn_id: espnId }),
+    });
+  }
+}
+
+export async function fetchEventIds(): Promise<Record<string, string>> {
+  const r = await fetch(`${sb("events")}?select=game_key,espn_event_id`, { headers: sbHeaders });
+  const rows: { game_key: string; espn_event_id: string }[] = await r.json();
+  return Object.fromEntries(rows.filter(r => r.espn_event_id).map(r => [r.game_key, r.espn_event_id]));
+}
+
+export async function saveEventId(gameKey: string, espnEventId: string): Promise<void> {
+  const updateRes = await fetch(`${sb("events")}?game_key=eq.${encodeURIComponent(gameKey)}`, {
+    method: "PATCH", headers: sbHeaders,
+    body: JSON.stringify({ espn_event_id: espnEventId }),
+  });
+  const updated = await updateRes.json() as unknown[];
+  if (!Array.isArray(updated) || updated.length === 0) {
+    await fetch(sb("events"), {
+      method: "POST", headers: sbHeaders,
+      body: JSON.stringify({ game_key: gameKey, espn_event_id: espnEventId }),
+    });
+  }
+}
+
 export async function fetchLocked(): Promise<boolean> {
   const r = await fetch(`${sb("settings")}?key=eq.locked`, { headers: sbHeaders });
   const rows = await r.json() as { value: boolean }[];
@@ -112,4 +162,26 @@ export async function saveLocked(val: boolean): Promise<void> {
     headers: sbHeaders,
     body: JSON.stringify({ value: val }),
   });
+}
+
+export async function fetchPoints(): Promise<Record<string, number> | null> {
+  const r = await fetch(`${sb("settings")}?key=eq.points`, { headers: sbHeaders });
+  const rows = await r.json() as { value: Record<string, number> }[];
+  return rows[0]?.value ?? null;
+}
+
+export async function savePoints(pts: Record<string, number>): Promise<void> {
+  const updateRes = await fetch(`${sb("settings")}?key=eq.points`, {
+    method: "PATCH",
+    headers: sbHeaders,
+    body: JSON.stringify({ value: pts }),
+  });
+  const updated = await updateRes.json() as unknown[];
+  if (!Array.isArray(updated) || updated.length === 0) {
+    await fetch(sb("settings"), {
+      method: "POST",
+      headers: sbHeaders,
+      body: JSON.stringify({ key: "points", value: pts }),
+    });
+  }
 }
