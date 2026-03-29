@@ -60,7 +60,7 @@ export default function Leaderboard({ allPicks, official, regs, locked, playerLo
                 <div className="lb-nm">
                   {r.name}{r.email === me ? " (you)" : ""}
                   {r.canView && <span className="pill p-blu" style={{ marginLeft: 6 }}>view</span>}
-                  {r.picks?.lockedIn && <span className="pill p-grn" style={{ marginLeft: 4 }}>locked in</span>}
+                  {/* {r.picks?.lockedIn && <span className="pill p-grn" style={{ marginLeft: 4 }}>locked in</span>} */}
                 </div>
                 <div className="lb-sc">{r.score}</div>
                 <div className="lb-sub">{r.regC}</div>
