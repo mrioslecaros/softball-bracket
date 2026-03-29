@@ -103,12 +103,10 @@ export default function App() {
             onToggleLock={tournament.toggleLock}
             onAddAdmin={tournament.addAdmin}
             onRemoveAdmin={tournament.removeAdmin}
-            teamIds={tournament.teamIds}
-            eventIds={tournament.eventIds}
-            onSaveTeamId={tournament.saveTeamId}
-            onSaveEventId={tournament.saveEventId}
             onAutoFetch={tournament.autoFetchResults}
             onImportRegionalEventIds={tournament.importRegionalEventIds}
+            onImportSuperRegionalEventIds={tournament.importSuperRegionalEventIds}
+            onImportChampionshipEventIds={tournament.importChampionshipEventIds}
           />
         )}
       </div>

@@ -13,6 +13,8 @@ interface EspnEditorProps {
   onSaveEventId: (gameKey: string, espnEventId: string) => Promise<void>;
   onAutoFetch: (official: Official | null) => Promise<boolean>;
   onImportRegionalEventIds: () => Promise<number>;
+  onImportSuperRegionalEventIds: () => Promise<number>;
+  onImportChampionshipEventIds: () => Promise<number>;
 }
 
 function IdInput({
@@ -53,12 +55,13 @@ function IdInput({
 
 export default function EspnEditor({
   regs, srData, wcwsBrackets, official,
-  teamIds, eventIds, onSaveTeamId, onSaveEventId, onAutoFetch, onImportRegionalEventIds,
+  teamIds, eventIds, onSaveTeamId, onSaveEventId, onAutoFetch,
+  onImportRegionalEventIds, onImportSuperRegionalEventIds, onImportChampionshipEventIds,
 }: EspnEditorProps) {
   const [section, setSection] = useState<"teams" | "events">("teams");
   const [fetching, setFetching] = useState(false);
   const [fetchResult, setFetchResult] = useState<string | null>(null);
-  const [importing, setImporting] = useState(false);
+  const [importing, setImporting] = useState<string | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
 
   // All unique teams currently in the bracket
@@ -83,18 +86,22 @@ export default function EspnEditor({
     }
   };
 
-  const handleImportRegionalEventIds = async () => {
-    setImporting(true);
+  const makeImporter = (label: string, fn: () => Promise<number>) => async () => {
+    setImporting(label);
     setImportMsg(null);
     try {
-      const count = await onImportRegionalEventIds();
-      setImportMsg(count > 0 ? `✓ Imported ${count} regional game event IDs` : "No regional games found yet — try again once games begin");
+      const count = await fn();
+      setImportMsg(count > 0 ? `✓ Imported ${count} ${label.toLowerCase()} event IDs` : `No ${label.toLowerCase()} games found yet — try again once games begin`);
     } catch {
       setImportMsg("Error importing event IDs — check console");
     } finally {
-      setImporting(false);
+      setImporting(null);
     }
   };
+
+  const handleImportRegionals = makeImporter("Regional", onImportRegionalEventIds);
+  const handleImportSuperRegionals = makeImporter("Super Regional", onImportSuperRegionalEventIds);
+  const handleImportChampionship = makeImporter("Championship", onImportChampionshipEventIds);
 
   // Group event keys by round for display (regionals/SRs are multi-game formats — not trackable by single event ID)
   const eventGroups: { label: string; keys: string[] }[] = [
@@ -129,8 +136,14 @@ export default function EspnEditor({
           <button className="btn btn-g btn-s" onClick={handleAutoFetch} disabled={fetching || eventIdsSet === 0}>
             {fetching ? "Fetching…" : "↻ Fetch & Apply Results"}
           </button>
-          <button className="btn btn-s" onClick={handleImportRegionalEventIds} disabled={importing}>
-            {importing ? "Importing…" : "↓ Import Regional Event IDs"}
+          <button className="btn btn-s" onClick={handleImportRegionals} disabled={importing !== null}>
+            {importing === "Regional" ? "Importing…" : "↓ Import Regional Event IDs"}
+          </button>
+          <button className="btn btn-s" onClick={handleImportSuperRegionals} disabled={importing !== null}>
+            {importing === "Super Regional" ? "Importing…" : "↓ Import Super Regional Event IDs"}
+          </button>
+          <button className="btn btn-s" onClick={handleImportChampionship} disabled={importing !== null}>
+            {importing === "Championship" ? "Importing…" : "↓ Import Championship Event IDs"}
           </button>
         </div>
       </div>

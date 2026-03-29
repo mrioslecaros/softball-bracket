@@ -223,9 +223,10 @@ export function applyResultToOfficial(official: Official, gameKey: string, winne
     return o;
   }
 
-  const champMatch = gameKey.match(/^champ_(\d+)$/);
-  if (champMatch) {
-    const gn = parseInt(champMatch[1]);
+  // champ_1 / champ_2 / champ_3 — explicit game number (WCWS bracket editor manual fields)
+  const champNumMatch = gameKey.match(/^champ_(\d+)$/);
+  if (champNumMatch) {
+    const gn = parseInt(champNumMatch[1]);
     if (gn === 1) o.championship.game1 = winnerName;
     else if (gn === 2) o.championship.game2 = winnerName;
     else if (gn === 3) o.championship.game3 = winnerName;
@@ -271,10 +272,102 @@ export function gameKeyLabel(
   return gameKey;
 }
 
-// Game keys for single-game events only (regionals/SRs are multi-game formats — handled manually)
+// Scan scoreboard for super regional period and return event IDs grouped by SR index.
+// Matches games where both competitors belong to the same SR pair.
+// Key format: sr_<si>_<espnEventId>  →  espnEventId
+export async function fetchAllSuperRegionalEventIds(
+  srData: { teamA: string; teamB: string }[]
+): Promise<Record<string, string>> {
+  try {
+    const seasonRes = await fetch(ESPN_SEASON_TYPE3);
+    const seasonData = await seasonRes.json();
+    const startDateStr: string | undefined = seasonData?.startDate;
+    if (!startDateStr) return {};
+
+    const startDate = new Date(startDateStr);
+    const result: Record<string, string> = {};
+
+    // Super regionals start ~day 8, span ~3 days; scan days 7–14 to be safe
+    for (let d = 7; d <= 14; d++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + d);
+      const dateStr = dateToString(date);
+      try {
+        const res = await fetch(`${ESPN_SCOREBOARD}?dates=${dateStr}`);
+        const data = await res.json();
+        const events: ScoreboardEvent[] = data?.events ?? [];
+
+        for (const event of events) {
+          const eventId = event.id;
+          if (!eventId) continue;
+          const comp = event.competitions?.[0];
+          const names = (comp?.competitors ?? []).map(c => c.team?.displayName ?? c.team?.name ?? "");
+
+          const si = srData.findIndex(sr =>
+            (names.includes(sr.teamA) && names.includes(sr.teamB))
+          );
+          if (si === -1) continue;
+
+          result[`sr_${si}_${eventId}`] = eventId;
+        }
+      } catch { /* skip */ }
+    }
+
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+// Scan scoreboard for championship series period and return event IDs.
+// Matches games where both competitors are the two championship finalists.
+// Key format: champ_<espnEventId>  →  espnEventId  (sorted by date → game1, game2, game3 at apply time)
+export async function fetchChampionshipEventIds(
+  champA: string,
+  champB: string
+): Promise<Record<string, string>> {
+  if (!champA || !champB || champA.startsWith("Bracket") || champB.startsWith("Bracket")) return {};
+  try {
+    const seasonRes = await fetch(ESPN_SEASON_TYPE3);
+    const seasonData = await seasonRes.json();
+    const startDateStr: string | undefined = seasonData?.startDate;
+    if (!startDateStr) return {};
+
+    const startDate = new Date(startDateStr);
+    const result: Record<string, string> = {};
+
+    // Championship series starts ~day 18, spans ~3 days; scan days 17–25
+    for (let d = 17; d <= 25; d++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + d);
+      const dateStr = dateToString(date);
+      try {
+        const res = await fetch(`${ESPN_SCOREBOARD}?dates=${dateStr}`);
+        const data = await res.json();
+        const events: ScoreboardEvent[] = data?.events ?? [];
+
+        for (const event of events) {
+          const eventId = event.id;
+          if (!eventId) continue;
+          const comp = event.competitions?.[0];
+          const names = (comp?.competitors ?? []).map(c => c.team?.displayName ?? c.team?.name ?? "");
+
+          if (names.includes(champA) && names.includes(champB)) {
+            result[`champ_${eventId}`] = eventId;
+          }
+        }
+      } catch { /* skip */ }
+    }
+
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+// Game keys for single-game events only (WCWS bracket — regionals/SRs/championship are multi-game)
 export const ALL_GAME_KEYS: string[] = [
   ...[0, 1].flatMap(bi => ["w1", "w2", "w3", "e1", "e2", "bf", "ifg"].map(gk => `wcws_${bi}_${gk}`)),
-  "champ_1", "champ_2", "champ_3",
 ];
 
 export const ESPN_TEAM_SEARCH = (teamId: string) =>

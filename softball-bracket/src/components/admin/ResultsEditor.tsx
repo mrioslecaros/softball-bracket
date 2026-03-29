@@ -10,6 +10,10 @@ interface ResultsEditorProps {
   champB: string;
   official: Official | null;
   onSave: (off: Official) => Promise<void>;
+  onAutoFetch: (official: Official | null) => Promise<boolean>;
+  onImportRegionalEventIds: () => Promise<number>;
+  onImportSuperRegionalEventIds: () => Promise<number>;
+  onImportChampionshipEventIds: () => Promise<number>;
 }
 
 const emptyOfficial = (): Official => ({
@@ -22,10 +26,40 @@ const emptyOfficial = (): Official => ({
   championship: { game1: null, game2: null, game3: null, champion: null },
 });
 
-export default function ResultsEditor({ regs, srData, wcwsBrackets, champA, champB, official, onSave }: ResultsEditorProps) {
+export default function ResultsEditor({ regs, srData, wcwsBrackets, champA, champB, official, onSave, onAutoFetch, onImportRegionalEventIds, onImportSuperRegionalEventIds, onImportChampionshipEventIds }: ResultsEditorProps) {
   const [off, setOff] = useState<Official>(official || emptyOfficial());
+  const [fetching, setFetching] = useState(false);
+  const [fetchMsg, setFetchMsg] = useState<string | null>(null);
+  const [importing, setImporting] = useState<string | null>(null);
 
   const upd = (next: Official) => { setOff(next); onSave(next); };
+
+  const handleAutoFetch = async () => {
+    setFetching(true);
+    setFetchMsg(null);
+    try {
+      const anyUpdated = await onAutoFetch(off);
+      setFetchMsg(anyUpdated ? "✓ Results updated from ESPN" : "No new completed results found");
+      if (anyUpdated) setOff(official || emptyOfficial());
+    } catch {
+      setFetchMsg("Error fetching — check console");
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const makeImporter = (label: string, fn: () => Promise<number>) => async () => {
+    setImporting(label);
+    setFetchMsg(null);
+    try {
+      const count = await fn();
+      setFetchMsg(count > 0 ? `✓ Imported ${count} ${label} event IDs` : `No ${label} games found yet`);
+    } catch {
+      setFetchMsg("Error importing event IDs — check console");
+    } finally {
+      setImporting(null);
+    }
+  };
 
   const w3Losers = [0, 1].map(bi => {
     const results = off.wcws?.[bi] ?? {};
@@ -38,7 +72,27 @@ export default function ResultsEditor({ regs, srData, wcwsBrackets, champA, cham
     bf: "Bracket Final", ifg: "If Necessary",
   };
 
+  const importRegionals = makeImporter("regional", onImportRegionalEventIds);
+  const importSuperRegionals = makeImporter("super regional", onImportSuperRegionalEventIds);
+  const importChampionship = makeImporter("championship", onImportChampionshipEventIds);
+
   return (
+    <>
+    <div className="ac" style={{ marginBottom: "1rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--mu2)", marginBottom: 3 }}>AUTO-FETCH FROM ESPN</div>
+        <div style={{ fontSize: 10, color: "var(--mu)" }}>Import event IDs then fetch completed game results automatically.</div>
+        {fetchMsg && (
+          <div style={{ fontSize: 10, marginTop: 4, color: fetchMsg.startsWith("✓") ? "var(--grn)" : "var(--red)" }}>{fetchMsg}</div>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        <button className="btn btn-s" onClick={importRegionals} disabled={importing !== null}>{importing === "regional" ? "Importing…" : "↓ Regional IDs"}</button>
+        <button className="btn btn-s" onClick={importSuperRegionals} disabled={importing !== null}>{importing === "super regional" ? "Importing…" : "↓ Super Regional IDs"}</button>
+        <button className="btn btn-s" onClick={importChampionship} disabled={importing !== null}>{importing === "championship" ? "Importing…" : "↓ Championship IDs"}</button>
+        <button className="btn btn-g btn-s" onClick={handleAutoFetch} disabled={fetching}>{fetching ? "Fetching…" : "↻ Fetch & Apply Results"}</button>
+      </div>
+    </div>
     <div className="ag">
       <div className="ac">
         <h4>Regional Winners</h4>
@@ -136,5 +190,6 @@ export default function ResultsEditor({ regs, srData, wcwsBrackets, champA, cham
         })}
       </div>
     </div>
+    </>
   );
 }
