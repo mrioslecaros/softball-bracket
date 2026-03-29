@@ -12,6 +12,7 @@ interface EspnEditorProps {
   onSaveTeamId: (name: string, espnId: string) => Promise<void>;
   onSaveEventId: (gameKey: string, espnEventId: string) => Promise<void>;
   onAutoFetch: (official: Official | null) => Promise<boolean>;
+  onImportRegionalEventIds: () => Promise<number>;
 }
 
 function IdInput({
@@ -52,11 +53,13 @@ function IdInput({
 
 export default function EspnEditor({
   regs, srData, wcwsBrackets, official,
-  teamIds, eventIds, onSaveTeamId, onSaveEventId, onAutoFetch,
+  teamIds, eventIds, onSaveTeamId, onSaveEventId, onAutoFetch, onImportRegionalEventIds,
 }: EspnEditorProps) {
   const [section, setSection] = useState<"teams" | "events">("teams");
   const [fetching, setFetching] = useState(false);
   const [fetchResult, setFetchResult] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   // All unique teams currently in the bracket
   const allTeams = [...new Set(
@@ -80,10 +83,21 @@ export default function EspnEditor({
     }
   };
 
-  // Group event keys by round for display
+  const handleImportRegionalEventIds = async () => {
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const count = await onImportRegionalEventIds();
+      setImportMsg(count > 0 ? `✓ Imported ${count} regional game event IDs` : "No regional games found yet — try again once games begin");
+    } catch {
+      setImportMsg("Error importing event IDs — check console");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Group event keys by round for display (regionals/SRs are multi-game formats — not trackable by single event ID)
   const eventGroups: { label: string; keys: string[] }[] = [
-    { label: "Regionals", keys: ALL_GAME_KEYS.filter(k => k.startsWith("reg_")) },
-    { label: "Super Regionals", keys: ALL_GAME_KEYS.filter(k => k.startsWith("sr_")) },
     { label: "WCWS Bracket 1", keys: ALL_GAME_KEYS.filter(k => k.startsWith("wcws_0_")) },
     { label: "WCWS Bracket 2", keys: ALL_GAME_KEYS.filter(k => k.startsWith("wcws_1_")) },
     { label: "Championship Series", keys: ALL_GAME_KEYS.filter(k => k.startsWith("champ_")) },
@@ -105,10 +119,20 @@ export default function EspnEditor({
               {fetchResult}
             </div>
           )}
+          {importMsg && (
+            <div style={{ fontSize: 10, marginTop: 4, color: importMsg.startsWith("✓") ? "var(--grn)" : "var(--red)" }}>
+              {importMsg}
+            </div>
+          )}
         </div>
-        <button className="btn btn-g btn-s" onClick={handleAutoFetch} disabled={fetching || eventIdsSet === 0}>
-          {fetching ? "Fetching…" : "↻ Fetch & Apply Results"}
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <button className="btn btn-g btn-s" onClick={handleAutoFetch} disabled={fetching || eventIdsSet === 0}>
+            {fetching ? "Fetching…" : "↻ Fetch & Apply Results"}
+          </button>
+          <button className="btn btn-s" onClick={handleImportRegionalEventIds} disabled={importing}>
+            {importing ? "Importing…" : "↓ Import Regional Event IDs"}
+          </button>
+        </div>
       </div>
 
       {/* Section tabs */}
@@ -152,7 +176,9 @@ export default function EspnEditor({
       {section === "events" && (
         <div>
           <div className="ibox">
-            Enter the ESPN event ID for each game. Find it in the URL when viewing a game on ESPN:
+            Enter the ESPN event ID for each individual WCWS and Championship game. Regionals and Super Regionals
+            are multi-game formats — enter those winners manually in the Results tab.
+            Find the event ID in the ESPN game URL:
             {" "}<code>espn.com/college-softball/game/_/gameId/<strong>:eventId</strong></code>.
             Tab or Enter to save each field.
           </div>

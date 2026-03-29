@@ -108,6 +108,7 @@ export default function App() {
             onSaveTeamId={tournament.saveTeamId}
             onSaveEventId={tournament.saveEventId}
             onAutoFetch={tournament.autoFetchResults}
+            onImportRegionalEventIds={tournament.importRegionalEventIds}
           />
         )}
       </div>

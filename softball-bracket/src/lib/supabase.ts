@@ -21,12 +21,21 @@ export async function fetchRegionals(): Promise<Regional[]> {
     winner: null,
   }));
  }
-export async function saveRegional(ri: number, name: string, teams: string[]): Promise<void> { 
-  await fetch(`${sb("regionals")}?regional_index=eq.${ri}`, {
+export async function saveRegional(ri: number, name: string, teams: string[]): Promise<void> {
+  const body = { regional_index: ri, name, seed_1: teams[0], seed_2: teams[1], seed_3: teams[2], seed_4: teams[3] };
+  const updateRes = await fetch(`${sb("regionals")}?regional_index=eq.${ri}`, {
     method: "PATCH",
     headers: sbHeaders,
-    body: JSON.stringify({ name, seed_1: teams[0], seed_2: teams[1], seed_3: teams[2], seed_4: teams[3] }),
-  }); 
+    body: JSON.stringify(body),
+  });
+  const updated = await updateRes.json() as unknown[];
+  if (!Array.isArray(updated) || updated.length === 0) {
+    await fetch(sb("regionals"), {
+      method: "POST",
+      headers: sbHeaders,
+      body: JSON.stringify(body),
+    });
+  }
 }
 export async function fetchOfficial(): Promise<Official | null> {
   const r = await fetch(`${sb("official_results")}?order=id.desc&limit=1`, { headers: sbHeaders });

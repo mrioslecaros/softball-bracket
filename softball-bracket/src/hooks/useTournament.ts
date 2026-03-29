@@ -12,7 +12,7 @@ import {
   fetchTeamIds, saveTeamId as dbSaveTeamId,
   fetchEventIds, saveEventId as dbSaveEventId,
 } from "../lib/supabase";
-import { fetchEventResult, applyResultToOfficial } from "../lib/espnApi";
+import { fetchEventResult, applyResultToOfficial, fetchAllRegionalEventIds } from "../lib/espnApi";
 
 
 interface ESPNEvent {
@@ -224,6 +224,16 @@ export function useTournament() {
     setEventIds(prev => ({ ...prev, [gameKey]: espnEventId }));
   }, []);
 
+  const importRegionalEventIds = useCallback(async () => {
+    const fetched = await fetchAllRegionalEventIds(regs);
+    if (Object.keys(fetched).length === 0) return 0;
+    await Promise.all(
+      Object.entries(fetched).map(([key, id]) => dbSaveEventId(key, id))
+    );
+    setEventIds(prev => ({ ...prev, ...fetched }));
+    return Object.keys(fetched).length;
+  }, [regs]);
+
   const autoFetchResults = useCallback(async (currentOfficial: Official | null) => {
     const base: Official = currentOfficial ?? {
       regionals: Array(16).fill(null),
@@ -234,14 +244,45 @@ export function useTournament() {
       ],
       championship: { game1: null, game2: null, game3: null, champion: null },
     };
-    // Build reverse map: espnId → team name
+
     const espnIdToName: Record<string, string> = {};
     for (const [name, espnId] of Object.entries(teamIds)) {
       espnIdToName[espnId] = name;
     }
-    let updated = { ...base };
+
+    let updated: Official = JSON.parse(JSON.stringify(base));
     let anyUpdated = false;
+
+    // Group reg_N_* keys by regional index
+    const regGroups: Record<number, string[]> = {};
+    const singleKeys: [string, string][] = [];
     for (const [gameKey, eventId] of Object.entries(eventIds)) {
+      const regMatch = gameKey.match(/^reg_(\d+)_/);
+      if (regMatch) {
+        const ri = parseInt(regMatch[1]);
+        (regGroups[ri] ??= []).push(eventId);
+      } else {
+        singleKeys.push([gameKey, eventId]);
+      }
+    }
+
+    // For each regional: fetch all games, find last completed, its winner = regional winner
+    for (const [riStr, eIds] of Object.entries(regGroups)) {
+      const ri = parseInt(riStr);
+      const results = await Promise.all(eIds.map(id => fetchEventResult(id)));
+      const completed = results
+        .filter(r => r?.completed && r.winnerEspnId)
+        .sort((a, b) => (a!.date ?? "").localeCompare(b!.date ?? ""));
+      const last = completed[completed.length - 1];
+      if (!last?.winnerEspnId) continue;
+      const winnerName = espnIdToName[last.winnerEspnId];
+      if (!winnerName) continue;
+      updated = applyResultToOfficial(updated, `reg_${ri}`, winnerName);
+      anyUpdated = true;
+    }
+
+    // Single-game keys (WCWS, championship)
+    for (const [gameKey, eventId] of singleKeys) {
       const result = await fetchEventResult(eventId);
       if (!result?.completed || !result.winnerEspnId) continue;
       const winnerName = espnIdToName[result.winnerEspnId];
@@ -249,6 +290,7 @@ export function useTournament() {
       updated = applyResultToOfficial(updated, gameKey, winnerName);
       anyUpdated = true;
     }
+
     if (anyUpdated) {
       setOfficial(updated);
       await dbSaveOfficial(updated);
@@ -288,6 +330,6 @@ export function useTournament() {
     saveRegs, saveOfficial, toggleLock,
     addAdmin, removeAdmin, fetchESPN,
     playerLocked,
-    teamIds, eventIds, saveTeamId, saveEventId, autoFetchResults,
+    teamIds, eventIds, saveTeamId, saveEventId, autoFetchResults, importRegionalEventIds,
   };
 }

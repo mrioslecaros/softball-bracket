@@ -26,6 +26,7 @@ interface AdminPanelProps {
   onSaveTeamId: (name: string, espnId: string) => Promise<void>;
   onSaveEventId: (gameKey: string, espnEventId: string) => Promise<void>;
   onAutoFetch: (official: Official | null) => Promise<boolean>;
+  onImportRegionalEventIds: () => Promise<number>;
 }
 
 type AdminTab = "teams" | "results" | "espn" | "admins" | "settings";
@@ -34,7 +35,7 @@ export default function AdminPanel({
   regs, srData, wcwsBrackets, champA, champB, official, locked,
   admins, user, teamIds, eventIds,
   onSaveRegs, onSaveOfficial, onToggleLock,
-  onAddAdmin, onRemoveAdmin, onSaveTeamId, onSaveEventId, onAutoFetch,
+  onAddAdmin, onRemoveAdmin, onSaveTeamId, onSaveEventId, onAutoFetch, onImportRegionalEventIds,
 }: AdminPanelProps) {
   const [at, setAt] = useState<AdminTab>("teams");
 
@@ -46,9 +47,9 @@ export default function AdminPanel({
           <button key={t} className={`atb${at === t ? " on" : ""}`} onClick={() => setAt(t)}>{t}</button>
         ))}
       </div>
-      {at === "teams"    && <TeamsEditor regs={regs} onSave={onSaveRegs} />}
+      {at === "teams"    && <TeamsEditor regs={regs} onSave={onSaveRegs} onSaveTeamId={onSaveTeamId} />}
       {at === "results"  && <ResultsEditor regs={regs} srData={srData} wcwsBrackets={wcwsBrackets} champA={champA} champB={champB} official={official} onSave={onSaveOfficial} />}
-      {at === "espn"     && <EspnEditor regs={regs} srData={srData} wcwsBrackets={wcwsBrackets} official={official} teamIds={teamIds} eventIds={eventIds} onSaveTeamId={onSaveTeamId} onSaveEventId={onSaveEventId} onAutoFetch={onAutoFetch} />}
+      {at === "espn"     && <EspnEditor regs={regs} srData={srData} wcwsBrackets={wcwsBrackets} official={official} teamIds={teamIds} eventIds={eventIds} onSaveTeamId={onSaveTeamId} onSaveEventId={onSaveEventId} onAutoFetch={onAutoFetch} onImportRegionalEventIds={onImportRegionalEventIds} />}
       {at === "admins"   && <AdminManager admins={admins} currentUserEmail={user.email} onAdd={onAddAdmin} onRemove={onRemoveAdmin} />}
       {at === "settings" && <Settings locked={locked} onToggleLock={onToggleLock} />}
     </>
